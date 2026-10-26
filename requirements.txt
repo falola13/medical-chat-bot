@@ -7,3 +7,4 @@ langchain-pinecone
 langchain-huggingface
 flask
 huggingface_hub
+pypdf

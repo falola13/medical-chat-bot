@@ -4,4 +4,6 @@ pinecone
 langchain
 langchain-community
 langchain-pinecone
+langchain-huggingface
 flask
+huggingface_hub

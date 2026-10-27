@@ -72,5 +72,3 @@ for batch_of_ids in index.list():
 
 if deleted_count > 0:
     print(f"Removed {deleted_count} old chunks.")
-
-# docsearch = PineconeVectorStore.from_existing_index(INDEX_NAME, embedding=embeddings)

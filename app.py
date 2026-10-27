@@ -1,11 +1,18 @@
 import os
 
 from dotenv import load_dotenv
-from flask import Flask, jsonify, render_template, request
+from flask import (
+    Flask,
+    Response,
+    jsonify,
+    render_template,
+    request,
+    stream_with_context,
+)
 from langchain_community.llms import CTransformers
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
-from langchain_core.runnables import RunnablePassthrough
+from langchain_core.runnables import RunnableLambda, RunnablePassthrough
 from langchain_pinecone import PineconeVectorStore
 from pinecone import Pinecone
 
@@ -51,11 +58,15 @@ def join_chunks(docs):
     return "\n\n".join(doc.page_content for doc in docs)
 
 
+def stream_llama(prompt_value):
+    prompt_text = prompt_value.to_string()
+    yield from llm.client(prompt_text, stream=True)
+
+
 chain = (
     {"context": retriever | join_chunks, "question": RunnablePassthrough()}
     | PROMPT
-    | llm
-    | StrOutputParser()
+    | RunnableLambda(stream_llama)
 )
 
 
@@ -64,5 +75,33 @@ def index():
     return render_template("chat.html")
 
 
+# @app.route("/get", methods=["POST"])
+# def chat():
+#     question = request.form.get("msg", "").strip()
+
+#     if not question:
+#         return jsonify({"error": "Empty message"}), 400
+
+#     print("Question:", question)
+#     answer = chain.invoke(question)
+#     print("Response:", answer)
+
+
+#     return jsonify({"answer": answer})
+@app.route("/stream", methods=["POST"])
+def stream():
+    question = request.form.get("msg", "").strip()
+
+    if not question:
+        return jsonify({"error": "Empty message"}), 400
+
+    print("Question:", question)
+
+    return Response(
+        stream_with_context(chain.stream(question)),
+        mimetype="text/plain",
+    )
+
+
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=False)

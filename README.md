@@ -40,5 +40,22 @@ Download `llama-2-7b-chat.ggmlv3.q4_0.bin` from Hugging Face:
 
 https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGML/tree/main
 
-Then place it in a `model/` folder at the root of the project:
+Then place it in a `model/` folder at the root of the project
 
+
+```bash
+# run the following command
+python store_index.py
+```
+
+```bash
+# Finally run the following command
+python app.py
+```
+### Techstack Used:
+
+- Python
+- LangChain
+- Flask
+- Meta Llama2
+- Pinecone

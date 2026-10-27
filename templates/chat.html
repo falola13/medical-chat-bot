@@ -5,12 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Medical Assistant</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <script>
+    // Apply the saved theme before the page draws, so it doesn't flash
+    const savedTheme = localStorage.getItem("theme");
+    if (savedTheme) document.documentElement.dataset.theme = savedTheme;
+  </script>
 </head>
 <body>
-  <div class="app">
+  <div class="layout">
 
-    <!-- Top bar -->
-    <header class="topbar">
+    <!-- ================= SIDEBAR ================= -->
+    <aside class="sidebar" id="sidebar">
       <div class="brand">
         <div class="brand-mark" aria-hidden="true">
           <svg viewBox="0 0 24 24" width="18" height="18">
@@ -19,80 +24,408 @@
         </div>
         <div>
           <div class="brand-name">Medical Assistant</div>
-          <div class="status"><span class="status-dot"></span>Local model · Llama 2</div>
+          <div class="brand-sub">Answers from your documents</div>
         </div>
       </div>
-      <button class="ghost-btn" id="new-chat" type="button">
+
+      <button class="new-chat" id="new-chat" type="button">
         <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-          <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none" />
+          <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none" />
         </svg>
-        New chat
+        New conversation
       </button>
-    </header>
 
-    <!-- Conversation -->
-    <main class="thread" id="thread">
-      <div class="thread-inner">
-
-        <section class="welcome" id="welcome">
-          <h1>What would you like to know?</h1>
-          <p>I answer from your medical documents and show the pages I used, so you can check for yourself.</p>
-
-          <div class="suggestions">
-            <button class="suggestion" type="button" data-q="What are the common symptoms of malaria?">
-              <span class="suggestion-title">Malaria symptoms</span>
-              <span class="suggestion-sub">What are the common signs?</span>
-            </button>
-            <button class="suggestion" type="button" data-q="What is the difference between type 1 and type 2 diabetes?">
-              <span class="suggestion-title">Diabetes types</span>
-              <span class="suggestion-sub">Type 1 vs type 2</span>
-            </button>
-            <button class="suggestion" type="button" data-q="What causes high blood pressure?">
-              <span class="suggestion-title">Hypertension</span>
-              <span class="suggestion-sub">What causes it?</span>
-            </button>
-            <button class="suggestion" type="button" data-q="How is typhoid fever treated?">
-              <span class="suggestion-title">Typhoid treatment</span>
-              <span class="suggestion-sub">How is it managed?</span>
-            </button>
-          </div>
-        </section>
-
-        <div class="messages" id="messages" aria-live="polite"></div>
+      <div class="side-section">
+        <div class="side-label">This session</div>
+        <ul class="history" id="history"></ul>
+        <p class="history-empty" id="history-empty">Questions you ask will show up here.</p>
       </div>
-    </main>
 
-    <!-- Input -->
-    <footer class="composer-wrap">
-      <form class="composer" id="composer">
-        <textarea
-          id="msg"
-          rows="1"
-          placeholder="Ask a medical question..."
-          aria-label="Your question"
-        ></textarea>
-        <button class="send-btn" id="send" type="submit" aria-label="Send" disabled>
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-            <path d="M5 12h13M13 6l6 6-6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+      <div class="side-footer">
+        <div class="kb-card">
+          <div class="kb-title"><span class="status-dot"></span>Llama 2 · running locally</div>
+          <p>Answers come only from your medical PDFs, with page references you can check.</p>
+        </div>
+        <button class="theme-toggle" id="theme-toggle" type="button">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2" />
+            <path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" />
+          </svg>
+          <span id="theme-label">Dark mode</span>
+        </button>
+      </div>
+    </aside>
+
+    <div class="scrim" id="scrim"></div>
+
+    <!-- ================= MAIN ================= -->
+    <main class="main">
+      <header class="main-header">
+        <button class="icon-btn menu-btn" id="menu-btn" type="button" aria-label="Open menu">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none" />
           </svg>
         </button>
-      </form>
-      <p class="hint">
-        <kbd>Enter</kbd> to send · <kbd>Shift</kbd> + <kbd>Enter</kbd> for a new line ·
-        For information only, not a substitute for a doctor.
-      </p>
-    </footer>
+        <div class="header-text">
+          <h2 id="convo-title">New conversation</h2>
+          <p>For information only, not a substitute for a doctor</p>
+        </div>
+      </header>
+
+      <section class="thread" id="thread">
+        <div class="thread-inner">
+
+          <section class="welcome" id="welcome">
+            <div class="welcome-emblem" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="26" height="26">
+                <path d="M10 3h4v7h7v4h-7v7h-4v-7H3v-4h7z" fill="currentColor" />
+              </svg>
+            </div>
+            <h1 id="greeting">Hello</h1>
+            <p>Ask about symptoms, conditions or treatments. Every answer shows the pages it came from.</p>
+
+            <div class="suggestions">
+              <button class="suggestion" type="button" data-q="What are the common symptoms of malaria?">
+                <span class="tag">Symptoms</span>
+                <span class="suggestion-title">What are the common signs of malaria?</span>
+              </button>
+              <button class="suggestion" type="button" data-q="What is the difference between type 1 and type 2 diabetes?">
+                <span class="tag">Conditions</span>
+                <span class="suggestion-title">Type 1 vs type 2 diabetes</span>
+              </button>
+              <button class="suggestion" type="button" data-q="What causes high blood pressure?">
+                <span class="tag">Causes</span>
+                <span class="suggestion-title">What causes high blood pressure?</span>
+              </button>
+              <button class="suggestion" type="button" data-q="How is typhoid fever treated?">
+                <span class="tag">Treatment</span>
+                <span class="suggestion-title">How is typhoid fever treated?</span>
+              </button>
+            </div>
+          </section>
+
+          <div class="messages" id="messages" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <footer class="composer-wrap">
+        <form class="composer" id="composer">
+          <textarea id="msg" rows="1" placeholder="Ask a medical question..." aria-label="Your question"></textarea>
+          <div class="composer-bar">
+            <span class="composer-hint"><kbd>Enter</kbd> to send · <kbd>Shift</kbd> + <kbd>Enter</kbd> new line</span>
+            <button class="send-btn" id="send" type="submit">
+              Send
+              <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+                <path d="M5 12h13M13 6l6 6-6 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+              </svg>
+            </button>
+          </div>
+        </form>
+      </footer>
+    </main>
   </div>
 
   <script>
-    const thread = document.getElementById("thread");
-    const messages = document.getElementById("messages");
-    const welcome = document.getElementById("welcome");
-    const form = document.getElementById("composer");
-    const input = document.getElementById("msg");
-    const sendBtn = document.getElementById("send");
-    const newChatBtn = document.getElementById("new-chat");
+    // ---------- Grab elements ----------
+    const $ = (id) => document.getElementById(id);
+
+    const thread = $("thread");
+    const messages = $("messages");
+    const welcome = $("welcome");
+    const form = $("composer");
+    const input = $("msg");
+    const sendBtn = $("send");
+    const historyList = $("history");
+    const historyEmpty = $("history-empty");
+    const convoTitle = $("convo-title");
+    const sidebar = $("sidebar");
+    const scrim = $("scrim");
 
     let busy = false;
+    let questionCount = 0;
 
-    // ----------
+    const ICONS = {
+      bot: `<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M10 3h4v7h7v4h-7v7h-4v-7H3v-4h7z" fill="currentColor"/></svg>`,
+      user: `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="8" r="4" fill="currentColor"/><path d="M4 20c0-4.2 3.6-6.5 8-6.5s8 2.3 8 6.5" fill="currentColor"/></svg>`,
+      doc: `<svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path d="M6 2h8l5 5v15H6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>`,
+    };
+
+    // ---------- Small helpers ----------
+    function make(tag, className, text) {
+      const el = document.createElement(tag);
+      if (className) el.className = className;
+      if (text) el.textContent = text; // textContent keeps the page safe from injected HTML
+      return el;
+    }
+
+    function timeNow() {
+      return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    }
+
+    function scrollToBottom() {
+      thread.scrollTo({ top: thread.scrollHeight, behavior: "smooth" });
+    }
+
+    function autoGrow() {
+      input.style.height = "auto";
+      input.style.height = Math.min(input.scrollHeight, 200) + "px";
+    }
+
+    function setGreeting() {
+      const hour = new Date().getHours();
+      $("greeting").textContent =
+        hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+    }
+
+    function makeAvatar(type) {
+      const avatar = make("div", "avatar " + type + "-avatar");
+      avatar.innerHTML = ICONS[type];
+      return avatar;
+    }
+
+    // ---------- Sidebar ----------
+    function openSidebar() {
+      sidebar.classList.add("open");
+      scrim.classList.add("show");
+    }
+
+    function closeSidebar() {
+      sidebar.classList.remove("open");
+      scrim.classList.remove("show");
+    }
+
+    function addToHistory(question, row) {
+      historyEmpty.classList.add("hidden");
+      const li = make("li");
+      const btn = make("button", "history-item", question);
+      btn.type = "button";
+      btn.addEventListener("click", () => {
+        row.scrollIntoView({ behavior: "smooth", block: "start" });
+        closeSidebar();
+      });
+      li.appendChild(btn);
+      historyList.appendChild(li);
+    }
+
+    // ---------- Messages ----------
+    function addUserMessage(text) {
+      const row = make("div", "row user");
+      const wrap = make("div", "user-wrap");
+      wrap.appendChild(make("div", "bubble", text));
+      wrap.appendChild(make("div", "msg-time", timeNow()));
+      row.appendChild(wrap);
+      row.appendChild(makeAvatar("user"));
+      messages.appendChild(row);
+      scrollToBottom();
+      return row;
+    }
+
+    function addThinking() {
+      const row = make("div", "row bot");
+      row.appendChild(makeAvatar("bot"));
+
+      const card = make("div", "bot-card");
+      const head = make("div", "bot-head");
+      head.appendChild(make("span", "bot-name", "Assistant"));
+      head.appendChild(make("span", "msg-time", timeNow()));
+      card.appendChild(head);
+
+      const body = make("div", "bot-content");
+      const thinking = make("div", "thinking");
+      thinking.innerHTML = '<span class="dots"><i></i><i></i><i></i></span>';
+      const label = make("span", "", "Searching your documents...");
+      thinking.appendChild(label);
+      body.appendChild(thinking);
+      card.appendChild(body);
+      row.appendChild(card);
+
+      messages.appendChild(row);
+      scrollToBottom();
+
+      // Live timer, so a slow model doesn't look frozen
+      const start = Date.now();
+      const timer = setInterval(() => {
+        const secs = Math.floor((Date.now() - start) / 1000);
+        label.textContent = secs < 3 ? "Searching your documents..." : `Writing an answer... ${secs}s`;
+      }, 1000);
+
+      return { body, start, stop: () => clearInterval(timer) };
+    }
+
+    function actionButton(text, onClick) {
+      const btn = make("button", "action-btn", text);
+      btn.type = "button";
+      btn.addEventListener("click", onClick);
+      return btn;
+    }
+function startAnswer(pending) {
+  pending.stop();
+  pending.body.innerHTML = "";
+  const textEl = make("div", "bot-text");
+  pending.body.appendChild(textEl);
+  return textEl;
+}
+    function fillAnswer(pending, question, answer, sources) {
+      pending.stop();
+      const secs = Math.round((Date.now() - pending.start) / 1000);
+      const text = answer.trim();
+      pending.body.innerHTML = "";
+
+      pending.body.appendChild(make("div", "bot-text", text));
+
+      if (sources && sources.length) {
+        const box = make("div", "sources");
+        box.appendChild(make("span", "sources-label", "Sources"));
+        sources.forEach((s) => {
+          const chip = make("span", "source-chip");
+          chip.innerHTML = ICONS.doc;
+          chip.appendChild(document.createTextNode(s.page ? `${s.file} · p. ${s.page}` : s.file));
+          box.appendChild(chip);
+        });
+        pending.body.appendChild(box);
+      }
+
+      const actions = make("div", "bot-actions");
+      const copyBtn = actionButton("Copy", async () => {
+        await navigator.clipboard.writeText(text);
+        copyBtn.textContent = "Copied";
+        setTimeout(() => (copyBtn.textContent = "Copy"), 1500);
+      });
+      actions.appendChild(copyBtn);
+      actions.appendChild(actionButton("Ask again", () => send(question)));
+      actions.appendChild(make("span", "answer-time", `Answered in ${secs}s`));
+      pending.body.appendChild(actions);
+
+      scrollToBottom();
+    }
+
+    function fillError(pending, question, text) {
+      pending.stop();
+      pending.body.innerHTML = "";
+      const box = make("div", "error-box");
+      box.appendChild(make("span", "", text));
+      box.appendChild(actionButton("Retry", () => send(question)));
+      pending.body.appendChild(box);
+      scrollToBottom();
+    }
+
+    // ---------- Sending ----------
+    async function send(question) {
+      question = question.trim();
+      if (!question || busy) return;
+
+      busy = true;
+      sendBtn.disabled = true;
+      welcome.classList.add("hidden");
+      input.value = "";
+      autoGrow();
+
+      if (questionCount === 0) {
+        convoTitle.textContent = question.length > 50 ? question.slice(0, 50) + "..." : question;
+      }
+      questionCount++;
+
+      const row = addUserMessage(question);
+      addToHistory(question, row);
+      const pending = addThinking();
+
+      try {
+  const response = await fetch("/stream", {
+    method: "POST",
+    body: new URLSearchParams({ msg: question }),
+  });
+
+  if (!response.ok) {
+    const data = await response.json();
+    fillError(pending, question, data.error || "Something went wrong.");
+  } else {
+    const sources = JSON.parse(response.headers.get("X-Sources") || "[]");
+    const textEl = startAnswer(pending);
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let fullText = "";
+
+    // Read the answer piece by piece as it arrives
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      fullText += decoder.decode(value, { stream: true });
+      textEl.textContent = fullText;
+      scrollToBottom();
+    }
+
+    // Once finished, add sources, Copy and Ask again
+    fillAnswer(pending, question, fullText, sources);
+  }
+} catch (err) {
+  fillError(pending, question, "Couldn't reach the server. Check that Flask is running.");
+}
+
+      busy = false;
+      sendBtn.disabled = false;
+      input.focus();
+    }
+
+    function resetChat() {
+      if (busy) return;
+      messages.innerHTML = "";
+      historyList.innerHTML = "";
+      historyEmpty.classList.remove("hidden");
+      welcome.classList.remove("hidden");
+      convoTitle.textContent = "New conversation";
+      questionCount = 0;
+      setGreeting();
+      closeSidebar();
+      input.focus();
+    }
+
+    // ---------- Theme ----------
+    function currentTheme() {
+      return (
+        document.documentElement.dataset.theme ||
+        (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+      );
+    }
+
+    function updateThemeLabel() {
+      $("theme-label").textContent = currentTheme() === "dark" ? "Light mode" : "Dark mode";
+    }
+
+    $("theme-toggle").addEventListener("click", () => {
+      const next = currentTheme() === "dark" ? "light" : "dark";
+      document.documentElement.dataset.theme = next;
+      localStorage.setItem("theme", next);
+      updateThemeLabel();
+    });
+
+    // ---------- Events ----------
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      send(input.value);
+    });
+
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        send(input.value);
+      }
+    });
+
+    input.addEventListener("input", autoGrow);
+
+    document.querySelectorAll(".suggestion").forEach((btn) => {
+      btn.addEventListener("click", () => send(btn.dataset.q));
+    });
+
+    $("new-chat").addEventListener("click", resetChat);
+    $("menu-btn").addEventListener("click", openSidebar);
+    scrim.addEventListener("click", closeSidebar);
+
+    // ---------- Start ----------
+    setGreeting();
+    updateThemeLabel();
+    input.focus();
+  </script>
+</body>
+</html>

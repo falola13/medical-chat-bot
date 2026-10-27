@@ -8,3 +8,5 @@ langchain-huggingface
 flask
 huggingface_hub
 pypdf
+
+-e .

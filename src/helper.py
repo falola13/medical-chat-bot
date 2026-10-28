@@ -38,3 +38,15 @@ def make_id(chunk):
 def is_already_uploaded(index: Index, chunk_id):
     result = index.fetch(ids=[chunk_id])
     return chunk_id in result.vectors
+
+
+def get_existing_ids(index, ids, batch_size=100):
+    """Return the set of IDs that are already stored in Pinecone."""
+    existing = set()
+
+    for start in range(0, len(ids), batch_size):
+        batch = ids[start : start + batch_size]
+        result = index.fetch(ids=batch)
+        existing.update(result.vectors.keys())
+
+    return existing

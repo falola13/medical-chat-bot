@@ -6,6 +6,7 @@ from pinecone import Pinecone, ServerlessSpec
 
 from src.helper import (
     download_hugging_face_embeddings,
+    get_existing_ids,
     is_already_uploaded,
     load_pdf,
     make_id,
@@ -17,9 +18,7 @@ API_KEY = os.environ.get("PINECONE_API_KEY")
 INDEX_NAME = os.environ.get("PINECONE_INDEX_NAME")
 
 if not API_KEY or not INDEX_NAME:
-    raise ValueError(
-        "PINECONE_API_KEY is required. Generate one from pinecone website and add to .env"
-    )
+    raise ValueError("Add PINECONE_API_KEY and PINECONE_INDEX_NAME to your .env file")
 
 # Initializing the Pinecone
 pc = Pinecone(api_key=API_KEY)
@@ -37,14 +36,24 @@ index = pc.Index(INDEX_NAME)
 
 documents = load_pdf("data/")
 chunks = text_split(documents)
+
+if not chunks:
+    raise SystemExit("No chunks found in data/. Stopping so the index isn't wiped.")
+
 embeddings = download_hugging_face_embeddings()
 
+# Give every chunk its ID
+all_ids = [make_id(chunk) for chunk in chunks]
+
+# Ask Pinecone which ones it already has (100 at a time)
+existing_ids = get_existing_ids(index, all_ids)
+
+# Keep only the chunks Pinecone doesn't have yet
 new_chunks = []
 new_ids = []
 
-for chunk in chunks:
-    chunk_id = make_id(chunk)
-    if not is_already_uploaded(index, chunk_id):
+for chunk, chunk_id in zip(chunks, all_ids):
+    if chunk_id not in existing_ids:
         new_chunks.append(chunk)
         new_ids.append(chunk_id)
 
